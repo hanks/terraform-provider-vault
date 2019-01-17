@@ -111,6 +111,17 @@ func genericSecretResourceWrite(d *schema.ResourceData, meta interface{}) error 
 		return fmt.Errorf("error determining if it's a v2 path: %s", err)
 	}
 
+	// Modify data to only add the new key and keep the remainder data
+	secret, err := versionedSecret(latestSecretVersion, originalPath, client)
+	if secret != nil {
+		for k := range data {
+			if _, ok := secret.Data[k]; !ok {
+				secret.Data[k] = ""
+			}
+		}
+		data = secret.Data
+	}
+
 	if v2 {
 		path = addPrefixToVKVPath(path, mountPath, "data")
 		data = map[string]interface{}{
@@ -180,6 +191,11 @@ func genericSecretResourceRead(d *schema.ResourceData, meta interface{}) error {
 		}
 
 		log.Printf("[DEBUG] secret: %#v", secret)
+
+		// Only compare the keys
+		for k := range secret.Data {
+			secret.Data[k] = ""
+		}
 
 		jsonData, err := json.Marshal(secret.Data)
 		if err != nil {
